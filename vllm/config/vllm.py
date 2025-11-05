@@ -780,6 +780,8 @@ class VllmConfig:
             f"tensor_parallel_size={self.parallel_config.tensor_parallel_size}, "  # noqa
             f"pipeline_parallel_size={self.parallel_config.pipeline_parallel_size}, "  # noqa
             f"data_parallel_size={self.parallel_config.data_parallel_size}, "  # noqa
+            f"enable_mla_prefill_dp_rebalancing="
+            f"{self.parallel_config.enable_mla_prefill_dp_rebalancing}, "
             f"disable_custom_all_reduce={self.parallel_config.disable_custom_all_reduce}, "  # noqa
             f"quantization={self.model_config.quantization}, "
             f"enforce_eager={self.model_config.enforce_eager}, "

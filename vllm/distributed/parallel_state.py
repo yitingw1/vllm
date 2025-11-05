@@ -1020,6 +1020,24 @@ def graph_capture(device: torch.device):
         yield context
 
 
+_MLA_DP_REBALANCING_WORLD: Optional[GroupCoordinator] = None
+_MLA_DP_REBALANCING_O_SHARED: Optional[GroupCoordinator] = None
+
+
+def get_mla_dp_rebalancing_world_group() -> GroupCoordinator:
+    assert _MLA_DP_REBALANCING_WORLD is not None, (
+        "MLA DP rebalancing world group is not initialized"
+    )
+    return _MLA_DP_REBALANCING_WORLD
+
+
+def get_mla_dp_rebalancing_o_shared_group() -> GroupCoordinator:
+    assert _MLA_DP_REBALANCING_O_SHARED is not None, (
+        "o_proj shared weight group for MLA DP rebalancing is not initialized"
+    )
+    return _MLA_DP_REBALANCING_O_SHARED
+
+
 logger = init_logger(__name__)
 
 _ENABLE_CUSTOM_ALL_REDUCE = True
@@ -1227,6 +1245,25 @@ def initialize_model_parallel(
     _EP = init_model_parallel_group(
         group_ranks, get_world_group().local_rank, backend, group_name="ep"
     )
+
+    # If MLA prefill DP rebalancing is enabled, we will create one world group
+    # and another one for shared weights.
+    if config.parallel_config.enable_mla_prefill_dp_rebalancing:
+        global _MLA_DP_REBALANCING_WORLD
+        global _MLA_DP_REBALANCING_O_SHARED
+        group_ranks = [list(range(torch.distributed.get_world_size()))]
+        _MLA_DP_REBALANCING_WORLD = init_model_parallel_group(
+            group_ranks,
+            get_world_group().local_rank,
+            backend,
+            group_name="mla_dp_rebalancing_world",
+        )
+        _MLA_DP_REBALANCING_O_SHARED = init_model_parallel_group(
+            group_ranks,
+            get_world_group().local_rank,
+            backend,
+            group_name="mla_dp_rebalancing_o_shared",
+        )
 
     logger.info(
         "rank %s in world size %s is assigned as "
