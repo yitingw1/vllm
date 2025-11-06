@@ -10,6 +10,7 @@ from torch import nn
 from vllm.attention import Attention
 from vllm.attention.layers.mla_dp_rebalancing import get_mla_dp_rebalancing_context
 from vllm.attention.ops.hpu_shared_weight_layer import (
+    post_process_after_loading_for_shared_weight_series,
     reach_layer_for_shared_weight_series,
     register_layer_to_shared_weight_series,
 )
@@ -23,9 +24,12 @@ from vllm.distributed.parallel_state import (
     get_mla_dp_rebalancing_world_group,
 )
 from vllm.forward_context import ForwardContext, get_forward_context
+from vllm.logger import init_logger
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.linear import ReplicatedLinear
 from vllm.model_executor.layers.quantization import QuantizationConfig
+
+logger = init_logger(__name__)
 
 
 @dataclass
@@ -162,6 +166,18 @@ class MultiHeadLatentAttention(CustomOp):
         )
 
         self.prefix = prefix
+
+    def process_weights_after_loading(self, act_dtype: torch.dtype):
+        # 不知道这个函数能不能走到，要验证一下
+        # vllm/model_executor/model_loader/utils.py中
+        # Complete the initialization of shared weight for o_proj
+        if get_current_vllm_config().parallel_config.enable_mla_prefill_dp_rebalancing:
+            post_process_after_loading_for_shared_weight_series(self.o_proj)
+
+        logger.debug(
+            "***wyt*** vllm/model_executor/layers/mal.py class MultiHeadLatentAttention"
+            "enter process_weights_after_loading()"
+        )
 
     def _forward_prefill_with_dp_rebalancing(
         self,

@@ -16,6 +16,7 @@ from typing_extensions import assert_never
 from vllm.attention import Attention
 from vllm.config import ModelConfig, VllmConfig, set_current_vllm_config
 from vllm.logger import init_logger
+from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.linear import QKVCrossParallelLinear
 from vllm.model_executor.layers.quantization.base_config import (
     QuantizationConfig,
@@ -126,7 +127,7 @@ def process_weights_after_loading(
     # NOTE: This intentionally happens after other modules so we can easily
     # decompress the weights for MLA.
     for _, module in model.named_modules():
-        if isinstance(module, Attention) and hasattr(
+        if (isinstance(module, Attention | CustomOp)) and hasattr(
             module, "process_weights_after_loading"
         ):
             # TODO(lucas): see if there is a way to unify the signatures
