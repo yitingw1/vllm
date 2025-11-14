@@ -14,6 +14,9 @@ from vllm.distributed.parallel_state import (
     get_tp_group,
 )
 from vllm.forward_context import get_forward_context
+from vllm.logger import init_logger
+
+logger = init_logger(__name__)
 
 
 @dataclass
@@ -49,7 +52,7 @@ def get_mla_dp_rebalancing_context() -> Optional[RebalancingContext]:
     return _mla_dp_rebalancing_context
 
 
-def set_mla_dp_rebalancing_context(input_ids: torch.Tensor):
+def set_mla_dp_rebalancing_context(input_ids: torch.Tensor, total_num_scheduled_tokens):
     global _mla_dp_rebalancing_context
     _mla_dp_rebalancing_context = None
     feature_enabled = (
@@ -61,26 +64,50 @@ def set_mla_dp_rebalancing_context(input_ids: torch.Tensor):
     assert sp_world_group.world_size > 1
 
     forward_context = get_forward_context()
-    if forward_context.in_profile_run:
-        return
+    # if forward_context.in_profile_run: # 先忽略
+    #     return
 
     num_output_tokens = input_ids.shape[0]
-    max_num_tokens_across_dp = forward_context.max_tokens_across_dp
+    dp_world_size = get_dp_group().world_size
+    if dp_world_size > 1 and forward_context.dp_metadata is not None:
+        max_num_tokens_across_dp = (
+            forward_context.dp_metadata.max_tokens_across_dp_cpu.item()
+        )
+    else:
+        max_num_tokens_across_dp = num_tokens  # 这里的num_tokens是没有值的，else语句还有问题
 
     attn_metadata = forward_context.attn_metadata
     if attn_metadata is not None:
         if isinstance(attn_metadata, dict):
             attn_metadata = next(iter(attn_metadata.values()))
-        has_decode = attn_metadata.num_decode_tokens > 0
-        has_prefill = attn_metadata.num_prefills > 0
-        if has_decode or not has_prefill:
-            feature_enabled = False
-        num_input_tokens = attn_metadata.num_actual_tokens
+        # 调用者保证
+        # has_decode = attn_metadata.num_decode_tokens > 0
+        # has_prefill = attn_metadata.num_prefills > 0
+        # if has_decode or not has_prefill:
+        #     feature_enabled = False
+        # num_input_tokens = attn_metadata.num_actual_tokens
+        num_input_tokens = (
+            total_num_scheduled_tokens  # 按照ascend的逻辑，这与上一行相等 2048
+        )
     else:
         num_input_tokens = 1
+    logger.info(
+        "***wyt*** vllm/attention/layers/mla_dp_rebalancing.py before input_ids.shape:%s",
+        input_ids.shape,
+    )  # torch.Size([2080])
+    input_ids = input_ids[:num_input_tokens]  # 从2080中截取2048个
 
-    input_ids = input_ids[:num_input_tokens]
-
+    logger.info(
+        "***wyt*** vllm/attention/layers/mla_dp_rebalancing.py feature_enabled:%s, num_input_tokens:%s, max_num_tokens_across_dp:%s",
+        feature_enabled,
+        num_input_tokens,
+        max_num_tokens_across_dp,
+    )
+    # feature_enabled:True, num_input_tokens:2048, max_num_tokens_across_dp:2080, input_ids.shape:torch.Size([2048])
+    logger.info(
+        "***wyt*** vllm/attention/layers/mla_dp_rebalancing.py after input_ids.shape:%s",
+        input_ids.shape,
+    )  # torch.Size([2048])
     rebalancing_metadata = torch.cat(
         [
             torch.tensor(
@@ -171,14 +198,66 @@ def set_mla_dp_rebalancing_context(input_ids: torch.Tensor):
     else:
         local_device_total_receive_len = num_tokens_per_device
 
-    forward_context.with_prefill = True
+    forward_context.with_prefill = True  # 这几个参数好像都是forward_context中没有的。。。看起来是可以直接设上去的。。
     forward_context.max_tokens_across_dp = num_tokens_per_dp
     forward_context.padded_num_tokens = num_tokens_per_dp
     dp_metadata = forward_context.dp_metadata
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py forward_context.max_tokens_across_dp:%s",
+        forward_context.max_tokens_across_dp,
+    )
+
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py num_padded_global_tokens:%s, num_tokens_per_dp:%s",
+        num_padded_global_tokens,
+        num_tokens_per_dp,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py num_tokens_per_device:%s, start_token_of_dp:%s, end_token_of_dp:%s",
+        num_tokens_per_device,
+        start_token_of_dp,
+        end_token_of_dp,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py global_tokens.shape:%s, dp_sp_start_token:%s, dp_sp_end_token:%s",
+        global_tokens.shape,
+        dp_sp_start_token,
+        dp_sp_end_token,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py device_sp_start_token:%s, device_sp_end_token:%s",
+        device_sp_start_token,
+        device_sp_end_token,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py local_dp:%s, local_device:%s",
+        local_dp,
+        local_device,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py local_device_sp_start_token_within_dp:%s, local_device_sp_end_token_within_dp:%s",
+        local_device_sp_start_token_within_dp,
+        local_device_sp_end_token_within_dp,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py local_device_total_receive_len:%s, num_output_tokens:%s",
+        local_device_total_receive_len,
+        num_output_tokens,
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py input_split_sizes:%s", input_split_sizes
+    )
+    logger.info(
+        "***wyt*** mla_dp_rebalancing.py output_split_sizes:%s", output_split_sizes
+    )
+
     if dp_metadata is not None:
         dp_metadata.max_tokens_across_dp_cpu.fill_(num_tokens_per_dp)
-        for i in range(dp_group.world_size):
-            dp_metadata.cu_tokens_across_dp_cpu[i] = (i + 1) * num_tokens_per_dp
+        # for i in range(dp_group.world_size):
+        #     # vllm-ascend (cumulative tokens) to locate slice boundaries. 这里的值还有问题
+        #     # 先忽略
+        #     dp_metadata.cu_tokens_across_dp_cpu[i] = (i + 1) * num_tokens_per_dp  # 这个究竟在哪里用上了呀？
+        #     # dp_metadata.num_tokens_across_dp_cpu[i] = (i + 1) * num_tokens_per_dp
 
     _mla_dp_rebalancing_context = RebalancingContext(
         num_padded_global_tokens=num_padded_global_tokens,
@@ -206,8 +285,10 @@ def calc_div_ceil(up: int, down: int) -> int:
     return (up + down - 1) // down
 
 
-def pre_forward_for_dp_rebalancing(input_ids: torch.Tensor) -> torch.Tensor:
-    set_mla_dp_rebalancing_context(input_ids)
+def pre_forward_for_dp_rebalancing(
+    input_ids: torch.Tensor, total_num_scheduled_tokens
+) -> torch.Tensor:
+    set_mla_dp_rebalancing_context(input_ids, total_num_scheduled_tokens)
     context = get_mla_dp_rebalancing_context()
     if context is None:
         return input_ids

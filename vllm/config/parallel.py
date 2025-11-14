@@ -98,7 +98,7 @@ class ParallelConfig:
     between local data parallel ranks, but an external LB balances
     between vLLM nodes/replicas. Set explicitly in conjunction with
     --data-parallel-start-rank."""
-    enable_mla_prefill_dp_rebalancing: bool = False
+    enable_mla_prefill_dp_rebalancing: bool = True
     """It introduces DP Rebalancing, a staged hybrid parallelism strategy 
     optimized for MLA computation during the prefill phase."""
     enable_expert_parallel: bool = False

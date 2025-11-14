@@ -162,7 +162,14 @@ class DPMetadata:
         local_hidden_states = torch.empty(
             (local_num_tokens, hidden_size), dtype=dtype, device=device
         )
-
+        logger.info("***wyt*** DPMetadata max_tokens_across_dp_cpu: %s, num_tokens_across_dp_cpu:%s", max_tokens_across_dp_cpu, num_tokens_across_dp_cpu)
+        logger.info("***wyt*** DPMetadata hidden_states_across_dp.shape: %s, topk_ids_across_dp.shape:%s", hidden_states_across_dp.shape, topk_ids_across_dp.shape)
+        logger.info("***wyt*** DPMetadata topk_weights_across_dp.shape: %s, local_hidden_states.shape:%s", topk_weights_across_dp.shape, local_hidden_states.shape)
+        '''
+        ***wyt*** DPMetadata max_tokens_across_dp_cpu: tensor(2080, dtype=torch.int32), num_tokens_across_dp_cpu:tensor([2080, 2080, 2080, 2080], dtype=torch.int32)
+        ***wyt*** DPMetadata hidden_states_across_dp.shape: torch.Size([8320, 7168]), topk_ids_across_dp.shape:torch.Size([8320, 8])
+        ***wyt*** DPMetadata topk_weights_across_dp.shape: torch.Size([8320, 8]), local_hidden_states.shape:torch.Size([2080, 7168])
+        '''
         return DPMetadata(
             max_tokens_across_dp_cpu,
             num_tokens_across_dp_cpu,
@@ -340,6 +347,8 @@ def set_forward_context(
             vllm_config, num_tokens or 0, num_tokens_across_dp
         )
 
+    logger.info("***wyt*** forward_context.py num_tokens: %s, num_tokens_across_dp:%s", num_tokens, num_tokens_across_dp)
+    # num_tokens: 2080, num_tokens_across_dp:tensor([2080, 2080, 2080, 2080], dtype=torch.int32)
     forward_context = create_forward_context(
         attn_metadata,
         vllm_config,
