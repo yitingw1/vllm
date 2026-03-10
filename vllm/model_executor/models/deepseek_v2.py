@@ -1459,6 +1459,9 @@ class DeepseekV2ForCausalLM(
                 if is_pp_missing_parameter(name, self):
                     continue
 
+                if name not in params_dict:
+                    continue
+
                 param = params_dict[name]
                 weight_loader = param.weight_loader
                 weight_loader(param, loaded_weight, shard_id)
@@ -1527,7 +1530,13 @@ class DeepseekV2ForCausalLM(
                         # Instead, create a new variable
                         name_mapped = chunk_name.replace(weight_name, param_name)
 
+                        if name is None:
+                            continue
+
                         if is_pp_missing_parameter(name_mapped, self):
+                            continue
+
+                        if name_mapped not in params_dict:
                             continue
 
                         param = params_dict[name_mapped]
@@ -1568,6 +1577,9 @@ class DeepseekV2ForCausalLM(
                             continue
 
                         if is_pp_missing_parameter(name, self):
+                            continue
+
+                        if name not in params_dict:
                             continue
 
                         param = params_dict[name]

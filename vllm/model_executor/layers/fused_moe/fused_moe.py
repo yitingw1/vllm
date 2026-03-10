@@ -878,6 +878,7 @@ def dispatch_fused_moe_kernel(
             bit=4 if use_int4_w4a16 else 8,
         )
 
+        logger.warning("use_moe_wna16_cuda:%s", use_moe_wna16_cuda)  # False
         if use_moe_wna16_cuda:
             invoke_fused_moe_wna16_cuda_kernel(
                 A,
@@ -915,6 +916,7 @@ def dispatch_fused_moe_kernel(
         )
 
     else:
+        ## here
         invoke_fused_moe_triton_kernel(
             A,
             B,
@@ -1680,6 +1682,11 @@ def fused_experts_impl(
         assert hidden_states.size(1) == w1.size(2), (
             f"Hidden size mismatch {hidden_states.size(1)} != {w1.size(2)}"
         )
+
+    logger.warning("use_fp8_w8a8:%s", use_fp8_w8a8)  # false
+    logger.warning("use_int8_w8a8:%s", use_int8_w8a8)  # false
+    logger.warning("use_int8_w8a16:%s", use_int8_w8a16)  # false
+    logger.warning("use_int4_w4a16:%s", use_int4_w4a16)  # true
 
     assert topk_weights.size() == topk_ids.size(), "topk shape mismatch"
     assert hidden_states.is_contiguous(), "Hidden_states must be contiguous"

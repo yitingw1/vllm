@@ -172,7 +172,7 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
 
             # Prefer to use the MarlinMoE kernel when it is supported.
             if (
-                not check_moe_marlin_supports_layer(layer, group_size)
+                check_moe_marlin_supports_layer(layer, group_size)
                 or current_platform.is_rocm()
             ):
                 if (

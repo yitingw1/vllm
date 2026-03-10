@@ -535,6 +535,15 @@ def download_weights_from_hf(
             )
 
     logger.debug("Using model weights format %s", allow_patterns)
+    ## DeepSeek-V2-Lite-Chat
+    # allow_patterns = [['model-00002-of-000004.safetensors', 'model-00003-of-000004.safetensors', \
+    # 'model-00001-of-000004.safetensors', 'model-00004-of-000004.safetensors']]
+    # allow_patterns = [['model-00001-of-000004.safetensors']]
+    ## Kimi-K2-Instruct
+    # allow_patterns = [["model-1-of-61.safetensors", "model-2-of-61.safetensors"]]
+    ## Kimi-K2.5
+    # allow_patterns = [['model-00001-of-000064.safetensors', 'model-00002-of-000064.safetensors']]
+
     # Use file lock to prevent multiple processes from
     # downloading the same model weights at the same time.
     with get_lock(model_name_or_path, cache_dir):
